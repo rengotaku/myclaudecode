@@ -1,0 +1,31 @@
+# Claude Code - Sensitive Files (DO NOT COMMIT)
+
+# Authentication & Credentials
+.credentials.json
+
+# History & Session Data
+history.jsonl
+file-history/
+session-env/
+todos/
+
+# Project-specific configurations (contains local paths)
+projects/
+
+# IDE & Debug
+ide/
+debug/
+logs/
+shell-snapshots/
+
+# Analytics & Cache
+statsig/
+backups/
+plugins/
+
+# Local environment files
+*.lock
+
+# Build artifacts
+commands/git/scripts/ja2romaji/ja2romaji
+commands/git/scripts/bin/ja2romaji
