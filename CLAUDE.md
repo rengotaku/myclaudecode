@@ -17,30 +17,24 @@ The SuperClaude framework components will be automatically imported below.
 # ═══════════════════════════════════════════════════
 
 # Core Framework
-@BUSINESS_PANEL_EXAMPLES.md
-@BUSINESS_SYMBOLS.md
-@FLAGS.md
-@PRINCIPLES.md
-@RULES.md
+@core/BUSINESS_PANEL_EXAMPLES.md
+@core/BUSINESS_SYMBOLS.md
+@core/FLAGS.md
+@core/PRINCIPLES.md
+@core/RULES.md
 
 # Behavioral Modes
-@MODE_Brainstorming.md
-@MODE_Business_Panel.md
-@MODE_Introspection.md
-@MODE_Orchestration.md
-@MODE_Task_Management.md
-@MODE_Token_Efficiency.md
+@modes/MODE_Brainstorming.md
+@modes/MODE_Business_Panel.md
+@modes/MODE_Introspection.md
+@modes/MODE_Orchestration.md
+@modes/MODE_Task_Management.md
+@modes/MODE_Token_Efficiency.md
 
 # MCP Documentation
-@MCP_Context7.md
-@MCP_Magic.md
-@MCP_Morphllm.md
-@MCP_Playwright.md
-@MCP_Serena.md
-
-# ===================================================
-# SuperClaude Framework Components
-# ===================================================
-
-# MCP Documentation
-@MCP_Sequential.md
+@mcp/MCP_Context7.md
+@mcp/MCP_Magic.md
+@mcp/MCP_Morphllm.md
+@mcp/MCP_Playwright.md
+@mcp/MCP_Serena.md
+@mcp/MCP_Sequential.md
