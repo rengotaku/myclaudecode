@@ -17,15 +17,12 @@ The SuperClaude framework components will be automatically imported below.
 # ═══════════════════════════════════════════════════
 
 # Core Framework
-@core/BUSINESS_PANEL_EXAMPLES.md
-@core/BUSINESS_SYMBOLS.md
 @core/FLAGS.md
 @core/PRINCIPLES.md
 @core/RULES.md
 
 # Behavioral Modes
 @modes/MODE_Brainstorming.md
-@modes/MODE_Business_Panel.md
 @modes/MODE_Introspection.md
 @modes/MODE_Orchestration.md
 @modes/MODE_Task_Management.md
