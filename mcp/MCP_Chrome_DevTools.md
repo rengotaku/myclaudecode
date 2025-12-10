@@ -18,12 +18,14 @@
 
 ## Setup
 ```bash
-# Start Chrome with debugging enabled
-google-chrome --remote-debugging-port=9222
-
-# Or with a dedicated profile
+# Start Chrome with debugging enabled (use separate profile to avoid conflicts)
 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
+
+# Verify connection
+curl http://localhost:9222/json/version
 ```
+
+**Note**: If Chrome is already running, you must use `--user-data-dir` to start a separate instance with debugging enabled.
 
 ## Works Best With
 - **Playwright**: Playwright automates → Chrome DevTools inspects deeper issues
