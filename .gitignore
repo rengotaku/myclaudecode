@@ -21,7 +21,8 @@ shell-snapshots/
 # Analytics & Cache
 statsig/
 backups/
-plugins/
+plugins/marketplaces/
+plugins/repos/
 
 # Local environment files
 *.lock
