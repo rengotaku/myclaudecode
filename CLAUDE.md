@@ -29,6 +29,7 @@ The SuperClaude framework components will be automatically imported below.
 @modes/MODE_Token_Efficiency.md
 
 # MCP Documentation
+@mcp/MCP_Chrome_DevTools.md
 @mcp/MCP_Context7.md
 @mcp/MCP_Magic.md
 @mcp/MCP_Morphllm.md
