@@ -456,22 +456,13 @@ if [ -n "${SUB_CHANGES}" ]; then
     SUB_CHANGES_SECTION="\n## サブ変更\n\n$(echo -e "${SUB_CHANGES}")"
 fi
 
-# 変更統計
-STATS_SECTION="\n## 変更統計\n\n"
-STATS_SECTION="${STATS_SECTION}| 項目 | 値 |\n"
-STATS_SECTION="${STATS_SECTION}|------|----|\n"
-STATS_SECTION="${STATS_SECTION}| 追加行数 | +${ADDED_LINES} |\n"
-STATS_SECTION="${STATS_SECTION}| 削除行数 | -${DELETED_LINES} |\n"
-STATS_SECTION="${STATS_SECTION}| 変更ファイル数 | $(echo "${CHANGED_FILES}" | wc -l | tr -d ' ') |\n"
-STATS_SECTION="${STATS_SECTION}| 最終コミット | \`${COMMIT_HASH}\` |\n"
-
 # 補足セクション
 if [ -n "${NOTES_SECTION}" ]; then
     NOTES_SECTION="\n${NOTES_SECTION}"
 fi
 
 # PR本文を組み立て
-NEW_PR_BODY=$(echo -e "${OVERVIEW_SECTION}\n${CHANGES_SECTION}${SUB_CHANGES_SECTION}${STATS_SECTION}${NOTES_SECTION}")
+NEW_PR_BODY=$(echo -e "${OVERVIEW_SECTION}\n${CHANGES_SECTION}${SUB_CHANGES_SECTION}${NOTES_SECTION}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 12. PR本文の更新
