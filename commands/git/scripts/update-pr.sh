@@ -374,7 +374,7 @@ while IFS= read -r commit_msg; do
     else
         SUB_CHANGES="${SUB_CHANGES}${ENTRY}\n"
     fi
-done < <(git log "${BASE_BRANCH}..HEAD" --pretty=format:"%s" 2>/dev/null || echo "${COMMIT_MESSAGE}")
+done < <(git log "${BASE_BRANCH}..HEAD" --pretty=format:"%s%n" 2>/dev/null | grep -v '^$' || echo "${COMMIT_MESSAGE}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 10. 補足情報の入力
