@@ -2,6 +2,19 @@
 
 # Git Update PR - 変更をコミットしてPRを更新
 # Usage: ./update-pr.sh [commit_message]
+#
+# PR本文フォーマット:
+#   ## 概要
+#   Issueで対応すること（Issue本文から取得）
+#
+#   ## 変更点
+#   概要に対して対応したことを羅列
+#
+#   ## サブ変更
+#   Issue指摘以外の対応を羅列
+#
+#   ## 補足
+#   注意点、残作業
 
 set -euo pipefail
 
@@ -108,7 +121,37 @@ success "PR確認完了: #${PR_NUMBER}"
 info "タイトル: ${PR_TITLE}"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 3. 変更内容の確認
+# 3. Issue番号の抽出とIssue情報取得
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+step "Issue情報を取得中..."
+
+# ブランチ名からIssue番号を抽出 (例: Issue-123-xxx, feature/Issue-123-xxx)
+ISSUE_NUMBER=""
+if [[ "${CURRENT_BRANCH}" =~ [Ii]ssue[-_]?([0-9]+) ]]; then
+    ISSUE_NUMBER="${BASH_REMATCH[1]}"
+fi
+
+ISSUE_TITLE=""
+ISSUE_BODY=""
+
+if [ -n "${ISSUE_NUMBER}" ]; then
+    info "Issue番号を検出: #${ISSUE_NUMBER}"
+
+    # Issue情報を取得
+    if ISSUE_JSON=$(gh issue view "${ISSUE_NUMBER}" --json title,body 2>/dev/null); then
+        ISSUE_TITLE=$(echo "${ISSUE_JSON}" | jq -r '.title // ""')
+        ISSUE_BODY=$(echo "${ISSUE_JSON}" | jq -r '.body // ""')
+        success "Issue情報取得完了: ${ISSUE_TITLE}"
+    else
+        warning "Issue #${ISSUE_NUMBER} の情報を取得できませんでした"
+    fi
+else
+    warning "ブランチ名からIssue番号を検出できませんでした"
+    info "ブランチ名形式: Issue-123-xxx または feature/Issue-123-xxx"
+fi
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 4. 変更内容の確認
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 step "変更内容を確認中..."
 
@@ -161,7 +204,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 4. ステージング確認
+# 5. ステージング確認
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if [ -n "${UNSTAGED_FILES}" ] || [ -n "${UNTRACKED_FILES}" ]; then
     warning "未ステージの変更があります"
@@ -177,7 +220,7 @@ if [ -n "${UNSTAGED_FILES}" ] || [ -n "${UNTRACKED_FILES}" ]; then
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 5. コミットメッセージ生成または使用
+# 6. コミットメッセージ生成または使用
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 変更ファイルの分析（常に実行）
 CHANGED_FILES=$(git diff --cached --name-only)
@@ -249,7 +292,7 @@ fi
 info "コミットメッセージ: ${COMMIT_MESSAGE}"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 6. コミット実行
+# 7. コミット実行
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 step "コミット中..."
 
@@ -259,7 +302,7 @@ COMMIT_HASH=$(git rev-parse --short HEAD)
 success "コミット完了: ${COMMIT_HASH}"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 7. リモートへプッシュ
+# 8. リモートへプッシュ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 step "リモートへプッシュ中..."
 
@@ -271,81 +314,176 @@ else
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 8. PR概要の更新
+# 9. 変更点の分類（Issue関連 vs サブ変更）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-step "PR概要を更新中..."
+step "変更点を分類中..."
 
-# タイムスタンプ生成
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+# Issue本文からキーワードを抽出（ある場合）
+ISSUE_KEYWORDS=""
+if [ -n "${ISSUE_BODY}" ]; then
+    # Issue本文から重要なキーワードを抽出（ファイル名、関数名、クラス名など）
+    ISSUE_KEYWORDS=$(echo "${ISSUE_BODY}" | grep -oE '[A-Za-z_][A-Za-z0-9_]*\.(ts|tsx|js|jsx|py|go|java|rs|vue|svelte)' | sort -u || true)
+    ISSUE_KEYWORDS="${ISSUE_KEYWORDS} $(echo "${ISSUE_BODY}" | grep -oE '`[^`]+`' | tr -d '`' | sort -u || true)"
+fi
 
-# 変更ファイルリストの生成（アイコン付き）
-CHANGED_FILES_LIST=""
+# PRの全コミット履歴を取得（ベースブランチとの差分）
+BASE_BRANCH=$(gh pr view --json baseRefName -q '.baseRefName' 2>/dev/null || echo "main")
+ALL_COMMITS=$(git log "${BASE_BRANCH}..HEAD" --pretty=format:"%s" 2>/dev/null || git log -10 --pretty=format:"%s")
+
+# 変更点とサブ変更を分類
+MAIN_CHANGES=""
+SUB_CHANGES=""
+
+# 今回のコミットの変更を分析
 while IFS= read -r file; do
+    [ -z "${file}" ] && continue
+
     # 変更種別を判定
-    if git diff HEAD~1 HEAD --name-status | grep -q "^A.*${file}$"; then
-        CHANGED_FILES_LIST="${CHANGED_FILES_LIST}- ➕ added: \`${file}\`\n"
-    elif git diff HEAD~1 HEAD --name-status | grep -q "^D.*${file}$"; then
-        CHANGED_FILES_LIST="${CHANGED_FILES_LIST}- ❌ deleted: \`${file}\`\n"
+    CHANGE_TYPE=""
+    if git diff HEAD~1 HEAD --name-status 2>/dev/null | grep -q "^A.*${file}$"; then
+        CHANGE_TYPE="追加"
+    elif git diff HEAD~1 HEAD --name-status 2>/dev/null | grep -q "^D.*${file}$"; then
+        CHANGE_TYPE="削除"
     else
-        CHANGED_FILES_LIST="${CHANGED_FILES_LIST}- ✏️ modified: \`${file}\`\n"
+        CHANGE_TYPE="修正"
+    fi
+
+    # Issue関連かどうか判定
+    IS_ISSUE_RELATED=false
+
+    # Issue本文にファイル名が含まれているか
+    FILE_NAME=$(basename "${file}")
+    if [ -n "${ISSUE_KEYWORDS}" ] && echo "${ISSUE_KEYWORDS}" | grep -qi "${FILE_NAME}"; then
+        IS_ISSUE_RELATED=true
+    fi
+
+    # Issueタイトルに関連するキーワードがファイルパスに含まれているか
+    if [ -n "${ISSUE_TITLE}" ]; then
+        # Issueタイトルから主要な単語を抽出
+        TITLE_WORDS=$(echo "${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | grep -oE '[a-z]+' | sort -u || true)
+        FILE_PATH_LOWER=$(echo "${file}" | tr '[:upper:]' '[:lower:]')
+        for word in ${TITLE_WORDS}; do
+            if [ ${#word} -ge 4 ] && echo "${FILE_PATH_LOWER}" | grep -qi "${word}"; then
+                IS_ISSUE_RELATED=true
+                break
+            fi
+        done
+    fi
+
+    # コミットメッセージにIssue番号が含まれているか
+    if [ -n "${ISSUE_NUMBER}" ] && echo "${COMMIT_MESSAGE}" | grep -qi "#${ISSUE_NUMBER}\|issue.*${ISSUE_NUMBER}"; then
+        IS_ISSUE_RELATED=true
+    fi
+
+    # デフォルトでメインの変更として扱う（Issue情報がない場合）
+    if [ -z "${ISSUE_TITLE}" ] && [ -z "${ISSUE_BODY}" ]; then
+        IS_ISSUE_RELATED=true
+    fi
+
+    # 分類
+    ENTRY="- ${CHANGE_TYPE}: \`${file}\`"
+    if [ "${IS_ISSUE_RELATED}" = true ]; then
+        MAIN_CHANGES="${MAIN_CHANGES}${ENTRY}\n"
+    else
+        SUB_CHANGES="${SUB_CHANGES}${ENTRY}\n"
     fi
 done <<< "${CHANGED_FILES}"
 
-# 変更サマリーの生成
-CHANGE_SUMMARY="**変更行数**: +${ADDED_LINES} -${DELETED_LINES}"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 10. 補足情報の入力
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "補足情報の入力"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+read -p "補足（注意点、残作業など）があれば入力してください (Enterでスキップ): " NOTES_INPUT
 
-# 更新履歴セクションの確認と追加
-if echo "${PR_BODY}" | grep -q "## 📝 更新履歴"; then
-    # 既存の更新履歴セクションに追加
-    NEW_ENTRY="### [${TIMESTAMP}] Commit: \`${COMMIT_HASH}\`
-**メッセージ**: ${COMMIT_MESSAGE}
-
-**変更ファイル**:
-${CHANGED_FILES_LIST}
-${CHANGE_SUMMARY}
-
----
-"
-
-    # 更新履歴セクションの後に新エントリを挿入
-    UPDATED_BODY=$(echo "${PR_BODY}" | awk -v entry="${NEW_ENTRY}" '
-        /## 📝 更新履歴/ {
-            print
-            print ""
-            print entry
-            skip=1
-            next
-        }
-        !skip || /^## / {
-            skip=0
-            print
-        }
-        skip
-    ')
-else
-    # 新しく更新履歴セクションを追加
-    UPDATED_BODY="${PR_BODY}
-
----
-
-## 📝 更新履歴
-
-### [${TIMESTAMP}] Commit: \`${COMMIT_HASH}\`
-**メッセージ**: ${COMMIT_MESSAGE}
-
-**変更ファイル**:
-${CHANGED_FILES_LIST}
-${CHANGE_SUMMARY}
-"
+# 既存PR本文から補足を抽出（ある場合は引き継ぐ）
+EXISTING_NOTES=""
+if echo "${PR_BODY}" | grep -q "## 補足"; then
+    EXISTING_NOTES=$(echo "${PR_BODY}" | sed -n '/## 補足/,/^## /p' | sed '1d;$d' | sed '/^$/d')
 fi
 
-# PR概要を更新
-echo "${UPDATED_BODY}" | gh pr edit "${PR_NUMBER}" --body-file -
-
-success "PR概要更新完了"
+# 補足セクションの構築
+NOTES_SECTION=""
+if [ -n "${NOTES_INPUT}" ] || [ -n "${EXISTING_NOTES}" ]; then
+    NOTES_SECTION="## 補足\n\n"
+    if [ -n "${NOTES_INPUT}" ]; then
+        NOTES_SECTION="${NOTES_SECTION}- ${NOTES_INPUT}\n"
+    fi
+    if [ -n "${EXISTING_NOTES}" ]; then
+        # 既存の補足も保持（重複しない場合）
+        if [ -n "${NOTES_INPUT}" ] && ! echo "${EXISTING_NOTES}" | grep -qF "${NOTES_INPUT}"; then
+            NOTES_SECTION="${NOTES_SECTION}${EXISTING_NOTES}\n"
+        elif [ -z "${NOTES_INPUT}" ]; then
+            NOTES_SECTION="${NOTES_SECTION}${EXISTING_NOTES}\n"
+        fi
+    fi
+fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 9. 完了メッセージ
+# 11. PR本文の生成
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+step "PR本文を生成中..."
+
+# 概要セクション
+OVERVIEW_SECTION="## 概要\n\n"
+if [ -n "${ISSUE_NUMBER}" ] && [ -n "${ISSUE_TITLE}" ]; then
+    OVERVIEW_SECTION="${OVERVIEW_SECTION}Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}\n\n"
+    if [ -n "${ISSUE_BODY}" ]; then
+        # Issue本文の最初の段落を抽出（長すぎる場合は省略）
+        ISSUE_SUMMARY=$(echo "${ISSUE_BODY}" | head -20 | sed '/^$/q' | head -10)
+        if [ -n "${ISSUE_SUMMARY}" ]; then
+            OVERVIEW_SECTION="${OVERVIEW_SECTION}> ${ISSUE_SUMMARY}\n"
+        fi
+    fi
+else
+    OVERVIEW_SECTION="${OVERVIEW_SECTION}${PR_TITLE}\n"
+fi
+
+# 変更点セクション
+CHANGES_SECTION="## 変更点\n\n"
+if [ -n "${MAIN_CHANGES}" ]; then
+    CHANGES_SECTION="${CHANGES_SECTION}$(echo -e "${MAIN_CHANGES}")"
+else
+    CHANGES_SECTION="${CHANGES_SECTION}- 変更なし\n"
+fi
+
+# サブ変更セクション（存在する場合のみ）
+SUB_CHANGES_SECTION=""
+if [ -n "${SUB_CHANGES}" ]; then
+    SUB_CHANGES_SECTION="\n## サブ変更\n\n$(echo -e "${SUB_CHANGES}")"
+fi
+
+# 変更統計
+STATS_SECTION="\n## 変更統計\n\n"
+STATS_SECTION="${STATS_SECTION}| 項目 | 値 |\n"
+STATS_SECTION="${STATS_SECTION}|------|----|\n"
+STATS_SECTION="${STATS_SECTION}| 追加行数 | +${ADDED_LINES} |\n"
+STATS_SECTION="${STATS_SECTION}| 削除行数 | -${DELETED_LINES} |\n"
+STATS_SECTION="${STATS_SECTION}| 変更ファイル数 | $(echo "${CHANGED_FILES}" | wc -l | tr -d ' ') |\n"
+STATS_SECTION="${STATS_SECTION}| 最終コミット | \`${COMMIT_HASH}\` |\n"
+
+# 補足セクション
+if [ -n "${NOTES_SECTION}" ]; then
+    NOTES_SECTION="\n${NOTES_SECTION}"
+fi
+
+# PR本文を組み立て
+NEW_PR_BODY=$(echo -e "${OVERVIEW_SECTION}\n${CHANGES_SECTION}${SUB_CHANGES_SECTION}${STATS_SECTION}${NOTES_SECTION}")
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 12. PR本文の更新
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+step "PR本文を更新中..."
+
+echo "${NEW_PR_BODY}" | gh pr edit "${PR_NUMBER}" --body-file -
+
+success "PR本文更新完了"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 13. 完了メッセージ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -355,6 +493,9 @@ echo ""
 echo "📝 コミット: ${COMMIT_HASH}"
 echo "💬 メッセージ: ${COMMIT_MESSAGE}"
 echo "📊 変更: +${ADDED_LINES} -${DELETED_LINES}"
+if [ -n "${ISSUE_NUMBER}" ]; then
+    echo "🎫 Issue: #${ISSUE_NUMBER}"
+fi
 echo "📋 PR #${PR_NUMBER}: ${PR_TITLE}"
 echo "🔗 PR URL: ${PR_URL}"
 echo ""
