@@ -314,80 +314,67 @@ else
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 9. 変更点の分類（Issue関連 vs サブ変更）
+# 9. 変更点の分類（コミットメッセージベース）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 step "変更点を分類中..."
 
-# Issue本文からキーワードを抽出（ある場合）
-ISSUE_KEYWORDS=""
-if [ -n "${ISSUE_BODY}" ]; then
-    # Issue本文から重要なキーワードを抽出（ファイル名、関数名、クラス名など）
-    ISSUE_KEYWORDS=$(echo "${ISSUE_BODY}" | grep -oE '[A-Za-z_][A-Za-z0-9_]*\.(ts|tsx|js|jsx|py|go|java|rs|vue|svelte)' | sort -u || true)
-    ISSUE_KEYWORDS="${ISSUE_KEYWORDS} $(echo "${ISSUE_BODY}" | grep -oE '`[^`]+`' | tr -d '`' | sort -u || true)"
-fi
-
 # PRの全コミット履歴を取得（ベースブランチとの差分）
 BASE_BRANCH=$(gh pr view --json baseRefName -q '.baseRefName' 2>/dev/null || echo "main")
-ALL_COMMITS=$(git log "${BASE_BRANCH}..HEAD" --pretty=format:"%s" 2>/dev/null || git log -10 --pretty=format:"%s")
+
+# Issue関連キーワードを抽出
+ISSUE_KEYWORDS=""
+if [ -n "${ISSUE_TITLE}" ]; then
+    # Issueタイトルから主要な単語を抽出（4文字以上）
+    ISSUE_KEYWORDS=$(echo "${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | grep -oE '[a-z]{4,}' | sort -u || true)
+fi
+if [ -n "${ISSUE_BODY}" ]; then
+    # Issue本文からもキーワードを抽出
+    BODY_KEYWORDS=$(echo "${ISSUE_BODY}" | tr '[:upper:]' '[:lower:]' | grep -oE '[a-z]{4,}' | head -20 | sort -u || true)
+    ISSUE_KEYWORDS="${ISSUE_KEYWORDS} ${BODY_KEYWORDS}"
+fi
 
 # 変更点とサブ変更を分類
 MAIN_CHANGES=""
 SUB_CHANGES=""
 
-# 今回のコミットの変更を分析
-while IFS= read -r file; do
-    [ -z "${file}" ] && continue
-
-    # 変更種別を判定
-    CHANGE_TYPE=""
-    if git diff HEAD~1 HEAD --name-status 2>/dev/null | grep -q "^A.*${file}$"; then
-        CHANGE_TYPE="追加"
-    elif git diff HEAD~1 HEAD --name-status 2>/dev/null | grep -q "^D.*${file}$"; then
-        CHANGE_TYPE="削除"
-    else
-        CHANGE_TYPE="修正"
-    fi
+# PRに含まれる全コミットのメッセージを取得して分類
+while IFS= read -r commit_msg; do
+    [ -z "${commit_msg}" ] && continue
 
     # Issue関連かどうか判定
     IS_ISSUE_RELATED=false
+    COMMIT_MSG_LOWER=$(echo "${commit_msg}" | tr '[:upper:]' '[:lower:]')
 
-    # Issue本文にファイル名が含まれているか
-    FILE_NAME=$(basename "${file}")
-    if [ -n "${ISSUE_KEYWORDS}" ] && echo "${ISSUE_KEYWORDS}" | grep -qi "${FILE_NAME}"; then
-        IS_ISSUE_RELATED=true
+    # コミットメッセージにIssue番号が含まれているか
+    if [ -n "${ISSUE_NUMBER}" ]; then
+        if echo "${commit_msg}" | grep -qiE "#${ISSUE_NUMBER}|issue[- ]?${ISSUE_NUMBER}"; then
+            IS_ISSUE_RELATED=true
+        fi
     fi
 
-    # Issueタイトルに関連するキーワードがファイルパスに含まれているか
-    if [ -n "${ISSUE_TITLE}" ]; then
-        # Issueタイトルから主要な単語を抽出
-        TITLE_WORDS=$(echo "${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | grep -oE '[a-z]+' | sort -u || true)
-        FILE_PATH_LOWER=$(echo "${file}" | tr '[:upper:]' '[:lower:]')
-        for word in ${TITLE_WORDS}; do
-            if [ ${#word} -ge 4 ] && echo "${FILE_PATH_LOWER}" | grep -qi "${word}"; then
+    # Issueキーワードがコミットメッセージに含まれているか
+    if [ -n "${ISSUE_KEYWORDS}" ] && [ "${IS_ISSUE_RELATED}" = false ]; then
+        for word in ${ISSUE_KEYWORDS}; do
+            if echo "${COMMIT_MSG_LOWER}" | grep -qi "${word}"; then
                 IS_ISSUE_RELATED=true
                 break
             fi
         done
     fi
 
-    # コミットメッセージにIssue番号が含まれているか
-    if [ -n "${ISSUE_NUMBER}" ] && echo "${COMMIT_MESSAGE}" | grep -qi "#${ISSUE_NUMBER}\|issue.*${ISSUE_NUMBER}"; then
-        IS_ISSUE_RELATED=true
-    fi
-
-    # デフォルトでメインの変更として扱う（Issue情報がない場合）
+    # Issue情報がない場合はデフォルトでメインの変更として扱う
     if [ -z "${ISSUE_TITLE}" ] && [ -z "${ISSUE_BODY}" ]; then
         IS_ISSUE_RELATED=true
     fi
 
     # 分類
-    ENTRY="- ${CHANGE_TYPE}: \`${file}\`"
+    ENTRY="- ${commit_msg}"
     if [ "${IS_ISSUE_RELATED}" = true ]; then
         MAIN_CHANGES="${MAIN_CHANGES}${ENTRY}\n"
     else
         SUB_CHANGES="${SUB_CHANGES}${ENTRY}\n"
     fi
-done <<< "${CHANGED_FILES}"
+done < <(git log "${BASE_BRANCH}..HEAD" --pretty=format:"%s" 2>/dev/null || echo "${COMMIT_MESSAGE}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 10. 補足情報の入力
