@@ -1,109 +1,109 @@
-# argostranslate翻訳環境セットアップガイド
+# ja2romaji 日本語→ローマ字変換環境
 
-日本語→英語の自動翻訳機能をGitコマンドに統合するためのセットアップ手順です。
+日本語のIssueタイトルやworking_nameを自動的にローマ字に変換し、Gitブランチ名に適した形式に変換します。
 
-## 📋 概要
+## 概要
 
-このシステムは、Pythonの`argostranslate`ライブラリを使用して、日本語のIssueタイトルやworking_nameを自動的に英語に翻訳し、Gitブランチ名に適した形式に変換します。
+このシステムは、Goで実装された`ja2romaji`ツールを使用して、日本語テキストをローマ字（ヘボン式）に変換します。Kagome形態素解析器を使用して、日本語を適切に分かち書きしてからローマ字化します。
 
-## 🎯 機能
+## 機能
 
-- ✅ 日本語テキストの自動翻訳（日本語→英語）
-- ✅ ブランチ名用の正規化（小文字、ハイフン区切り）
-- ✅ venv環境での依存関係管理
-- ✅ フォールバック機能（翻訳失敗時は手動入力）
+- 日本語テキストの自動ローマ字変換（ヘボン式）
+- 形態素解析による適切な単語分割
+- ブランチ名用の正規化（小文字、ハイフン区切り）
+- 単一バイナリで依存関係なし
+- フォールバック機能（変換失敗時は手動入力）
 
-## 📦 システム要件
+## システム要件
 
-- Python 3.8以上
-- pip（Pythonパッケージマネージャー）
-- 約500MBの空きディスク容量（言語モデル用）
+- Go 1.21以上（ビルド時のみ）
+- ビルド済みバイナリ使用時は依存関係なし
 
-## 🚀 セットアップ手順
+## ファイル構成
 
-### 1. セットアップスクリプトを実行
+```
+~/.claude/commands/git/scripts/
+├── bin/
+│   └── ja2romaji              # ビルド済みバイナリ
+├── ja2romaji/                 # ソースコード
+│   ├── main.go                # エントリーポイント
+│   ├── romaji/                # ローマ字変換パッケージ
+│   ├── go.mod
+│   ├── go.sum
+│   ├── Makefile
+│   └── README.md
+├── create-issue-pr.sh         # メインスクリプト（ja2romaji統合済み）
+├── update-pr.sh               # PR更新スクリプト
+└── TRANSLATION_SETUP.md       # このファイル
+```
+
+## セットアップ手順
+
+### 1. ビルド＆インストール
 
 ```bash
-cd ~/.claude/commands/git/scripts
-./setup-translation.sh
+cd ~/.claude/commands/git/scripts/ja2romaji
+make install
 ```
 
-### 2. セットアップ内容
+これにより `../bin/ja2romaji` にバイナリがインストールされます。
 
-スクリプトは以下の処理を自動的に実行します：
+### 2. 動作確認
 
-1. ✅ Python環境の確認
-2. 📦 Python仮想環境（venv）の作成
-3. 🔧 pipのアップグレード
-4. 📥 argostranslateのインストール
-5. 🌐 日本語→英語言語モデルのダウンロード
-6. 🧪 動作確認テスト
-
-### 3. セットアップ完了確認
-
-セットアップが成功すると、以下のようなメッセージが表示されます：
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ 翻訳環境のセットアップが完了しました
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📂 venv location: ~/.claude/commands/git/scripts/venv
-🐍 Python: Python 3.x.x
-📦 argostranslate: installed
-🌐 Language model: Japanese → English
+```bash
+~/.claude/commands/git/scripts/bin/ja2romaji "認証機能の実装"
+# 出力: ninshou-kinou-no-jissou
 ```
 
-## 🔧 使用方法
+## 使用方法
 
 ### コマンドラインから直接使用
 
 ```bash
 cd ~/.claude/commands/git/scripts
-./venv/bin/python3 ja2en.py "こんにちは、世界"
-# 出力: hello-world
+
+# 基本的な変換
+./bin/ja2romaji "こんにちは、世界"
+# 出力: konnichiha-sekai
+
+# 最大文字数を指定（デフォルト: 50）
+./bin/ja2romaji --max-length 30 "認証機能の実装"
+# 出力: ninshou-kinou-no-jissou
+
+# 区切り文字を変更
+./bin/ja2romaji --separator _ "テスト機能"
+# 出力: tesuto_kinou
+
+# 形態素解析なし（直接変換）
+./bin/ja2romaji --no-morph "カタカナテキスト"
+# 出力: katakanatekisuto
 ```
 
-### オプション指定
+### オプション一覧
 
-```bash
-# 最大文字数を指定（デフォルト: 30）
-./venv/bin/python3 ja2en.py "認証機能の実装" --max-length=50
-# 出力: authentication-function-implementation
-```
+| オプション | デフォルト | 説明 |
+|-----------|-----------|------|
+| `--max-length N` | 50 | 最大出力文字数 |
+| `--separator CHAR` | `-` | 単語区切り文字 |
+| `--no-morph` | false | 形態素解析を無効化 |
+| `--version` | - | バージョン表示 |
+| `--help` | - | ヘルプ表示 |
 
 ### Gitコマンドから自動使用
 
-翻訳環境がセットアップされていれば、`create-issue-pr.sh`が自動的に使用します：
+変換環境がセットアップされていれば、`create-issue-pr.sh`が自動的に使用します：
 
 ```bash
-# 日本語のIssueタイトルが自動翻訳される
+# 日本語のIssueタイトルが自動変換される
 /git:create-issue-pr 25 "画像一覧の修正"
 
 # 処理フロー:
-# 1. Issueタイトル「Face Libraryの画像一覧を修正」を検出
-# 2. 自動翻訳: "face-library-image-list-fix"
-# 3. ブランチ名生成: Issue-25-face-library-image-list-fix-image-list-fix
+# 1. Issueタイトル「画像一覧を修正」を検出
+# 2. 自動変換: "gazou-ichiran-wo-shuusei"
+# 3. ブランチ名生成: Issue-25-gazou-ichiran-wo-shuusei
 ```
 
-## 📁 ファイル構成
-
-```
-~/.claude/commands/git/scripts/
-├── setup-translation.sh       # セットアップスクリプト
-├── ja2en.py                   # 翻訳スクリプト
-├── create-issue-pr.sh         # メインスクリプト（翻訳統合済み）
-├── venv/                      # Python仮想環境
-│   ├── bin/
-│   │   └── python3
-│   └── lib/
-│       └── python3.x/
-│           └── site-packages/
-│               └── argostranslate/
-└── TRANSLATION_SETUP.md       # このファイル
-```
-
-## 🔍 動作フロー
+## 動作フロー
 
 ### 1. 日本語検出
 
@@ -112,117 +112,122 @@ ISSUE_TITLE="Face Libraryの画像一覧を修正"
 # → 日本語（ひらがな、カタカナ、漢字）を検出
 ```
 
-### 2. 翻訳環境チェック
+### 2. 変換環境チェック
 
 ```bash
-if [ venv環境が存在 ]; then
-    # 自動翻訳を実行
+if [ ja2romajiバイナリが存在 ]; then
+    # 自動変換を実行
 else
     # 手動入力にフォールバック
 fi
 ```
 
-### 3. 自動翻訳実行
+### 3. 自動変換実行
 
 ```bash
-python3 ja2en.py "Face Libraryの画像一覧を修正"
-# → "face-library-image-list-fix"
+ja2romaji "Face Libraryの画像一覧を修正"
+# → "face-library-no-gazou-ichiran-wo-shuusei"
 ```
 
 ### 4. ブランチ名生成
 
 ```bash
-BRANCH_NAME="Issue-25-face-library-image-list-fix-ph1"
-# ✅ 日本語なし、ASCII文字のみ
+BRANCH_NAME="Issue-25-face-library-no-gazou-ichiran"
+# 日本語なし、ASCII文字のみ
 ```
 
-## ⚠️ トラブルシューティング
+## 変換の仕組み
 
-### エラー: Python3がインストールされていません
+1. **形態素解析**: Kagome + IPA辞書でテキストを単語に分割
+2. **読み抽出**: 各トークンからカタカナ読みを取得
+3. **ローマ字化**: カタカナをヘボン式ローマ字に変換
+4. **スラグ生成**: 単語を区切り文字で結合、正規化（小文字、英数字+区切り文字のみ）
+5. **長さ制限**: 指定された最大長に切り詰め
+
+## トラブルシューティング
+
+### エラー: バイナリが見つかりません
+
+**解決方法**:
+```bash
+cd ~/.claude/commands/git/scripts/ja2romaji
+make install
+```
+
+### エラー: Goがインストールされていません
 
 **解決方法**:
 ```bash
 # macOS
-brew install python3
+brew install go
 
 # Ubuntu/Debian
-sudo apt-get install python3 python3-venv
+sudo apt-get install golang-go
 ```
 
-### エラー: 翻訳環境が見つかりません
-
-**解決方法**:
-```bash
-# セットアップスクリプトを再実行
-~/.claude/commands/git/scripts/setup-translation.sh
-```
-
-### 翻訳の精度が低い
-
-argostranslateはオフラインで動作する機械翻訳です。完璧な翻訳を期待しない場合は、以下の対処法があります：
-
-1. **手動入力**: 翻訳失敗時に手動で英語を入力
-2. **事前翻訳**: 重要なIssueは事前に英語タイトルを設定
-3. **翻訳結果確認**: 生成されたブランチ名を確認し、必要に応じて手動調整
-
-### venv環境の再作成
+### バイナリの再ビルド
 
 ```bash
-# 既存venvを削除
-rm -rf ~/.claude/commands/git/scripts/venv
-
-# セットアップスクリプトを再実行
-~/.claude/commands/git/scripts/setup-translation.sh
+cd ~/.claude/commands/git/scripts/ja2romaji
+make clean
+make install
 ```
 
-## 🧪 テスト
+## 開発
 
-### 翻訳テスト
+### ビルド
 
 ```bash
-cd ~/.claude/commands/git/scripts
-
-# テスト1: 基本的な翻訳
-./venv/bin/python3 ja2en.py "こんにちは、世界"
-# 期待結果: hello-world
-
-# テスト2: 長いテキスト
-./venv/bin/python3 ja2en.py "ユーザー管理画面の認証機能を実装する"
-# 期待結果: implement-authentication (最大30文字)
-
-# テスト3: 最大文字数指定
-./venv/bin/python3 ja2en.py "ユーザー管理画面の認証機能を実装する" --max-length=50
-# 期待結果: implement-authentication-function-user-manag
+cd ~/.claude/commands/git/scripts/ja2romaji
+make build
 ```
 
-### スクリプト統合テスト
+### テスト
 
 ```bash
-# create-issue-pr.shの構文チェック
-bash -n ~/.claude/commands/git/scripts/create-issue-pr.sh
+make test
 ```
 
-## 📚 参考情報
-
-- [argostranslate GitHub](https://github.com/argosopentech/argos-translate)
-- [Python venv documentation](https://docs.python.org/3/library/venv.html)
-
-## 💡 ベストプラクティス
-
-1. **事前セットアップ**: プロジェクト開始時に一度セットアップ
-2. **定期的な更新**: argostranslateの更新を定期的に確認
-3. **バックアップ**: 重要なブランチ名は手動確認
-4. **英語Issue推奨**: 可能な限り英語Issueタイトルを使用
-
-## 🔄 アンインストール
+### クロスコンパイル
 
 ```bash
-# venv環境を削除
-rm -rf ~/.claude/commands/git/scripts/venv
+# Linux
+make build-linux
 
-# 翻訳スクリプトを削除（オプション）
-rm ~/.claude/commands/git/scripts/ja2en.py
-rm ~/.claude/commands/git/scripts/setup-translation.sh
+# macOS Intel
+make build-mac-intel
+
+# macOS ARM (M1/M2)
+make build-mac-arm
+
+# 全プラットフォーム
+make build-all
 ```
 
-create-issue-pr.shは翻訳環境がなくても動作します（手動入力モードにフォールバック）。
+## 依存ライブラリ
+
+- [Kagome](https://github.com/ikawaha/kagome) - 日本語形態素解析器
+- [IPA Dictionary](https://github.com/ikawaha/kagome-dict) - 形態素解析辞書
+
+## 以前の実装との違い
+
+| 項目 | 旧実装 (ja2en.py) | 新実装 (ja2romaji) |
+|------|------------------|-------------------|
+| 言語 | Python | Go |
+| 方式 | 機械翻訳（日→英） | ローマ字変換 |
+| 依存 | argostranslate, venv | なし（単一バイナリ） |
+| サイズ | ~500MB（モデル含む） | ~15MB |
+| 速度 | 遅い（モデルロード） | 高速 |
+| 精度 | 翻訳品質に依存 | 一貫したローマ字出力 |
+
+## アンインストール
+
+```bash
+# バイナリを削除
+rm ~/.claude/commands/git/scripts/bin/ja2romaji
+
+# ソースを削除（オプション）
+rm -rf ~/.claude/commands/git/scripts/ja2romaji
+```
+
+create-issue-pr.shは変換環境がなくても動作します（手動入力モードにフォールバック）。
